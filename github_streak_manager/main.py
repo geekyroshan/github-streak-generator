@@ -256,38 +256,89 @@ class StreakManager:
             print(f"Error creating backdated commit: {e}")
             return False
     
-    def _generate_commit_message(self) -> str:
-        """Generate a realistic commit message.
+    def _generate_commit_message(self, date_str=None, file_path=None, commit_index=0, total_commits=1) -> str:
+        """Generate a realistic commit message based on context.
         
+        Args:
+            date_str: The date of the commit (for context)
+            file_path: Path to the file being modified
+            commit_index: Index of the current commit (0-based)
+            total_commits: Total number of commits for this date
+            
         Returns:
-            A randomly generated commit message
+            A contextually appropriate commit message
         """
-        commit_messages = [
-            "Update README.md",
-            "Fix typo in documentation",
-            "Add comments for clarity",
-            "Clean up code formatting",
-            "Refactor utility function",
-            "Update dependencies",
-            "Add missing documentation",
-            "Fix minor bug in error handling",
-            "Improve code readability",
-            "Add unit test for edge case",
-            "Optimize performance",
-            "Improve error messages",
-            "Update configuration",
-            "Fix linting issues",
-            "Add new feature implementation",
-            "Implement requested changes",
-            "Remove deprecated code",
-            "Update documentation",
-            "Fix edge case",
-            "Merge recent changes",
-            "Add new test cases",
-            "Improve logging"
-        ]
+        # For first commits in a repository
+        if commit_index == 0 and total_commits > 1:
+            initial_messages = [
+                "Initial commit",
+                "Initialize project structure",
+                "Setup project boilerplate",
+                "First commit",
+                "Create basic project structure",
+                "Start new project",
+                "Set up repository"
+            ]
+            return random.choice(initial_messages)
         
-        return random.choice(commit_messages)
+        # For documentation updates
+        if file_path and ("README" in file_path or "docs/" in file_path or ".md" in file_path):
+            doc_messages = [
+                "Update documentation",
+                "Improve README clarity",
+                "Add installation instructions",
+                "Update usage examples",
+                "Fix typo in documentation",
+                "Add section on advanced usage",
+                "Document new feature",
+                "Update API documentation",
+                "Add contributing guidelines",
+                "Update changelog"
+            ]
+            return random.choice(doc_messages)
+        
+        # For final commits in a series
+        if commit_index == total_commits - 1 and total_commits > 1:
+            final_messages = [
+                "Final adjustments",
+                "Clean up code before pushing",
+                "Fix minor issues",
+                "Apply code review feedback",
+                "Prepare for deployment",
+                "Ready for release",
+                "Final tweaks before merge"
+            ]
+            return random.choice(final_messages)
+        
+        # General coding messages
+        code_messages = [
+            "Update functionality",
+            "Refactor code for better readability",
+            "Optimize performance",
+            "Fix bug in error handling",
+            "Improve code structure",
+            "Add new feature",
+            "Fix edge case",
+            "Implement requested changes",
+            "Clean up code formatting",
+            "Improve error messages",
+            "Add better comments",
+            "Refactor utility functions",
+            "Remove deprecated code",
+            "Add unit tests",
+            "Fix linting issues",
+            "Improve logging",
+            "Update dependencies",
+            "Add error handling",
+            "Implement feedback from code review",
+            "Fix security vulnerability",
+            "Update API endpoint",
+            "Add new helper method",
+            "Make code more maintainable",
+            "Simplify complex logic",
+            "Fix regression"
+        ]
+        return random.choice(code_messages)
     
     def analyze_streak(self, username: Optional[str] = None) -> Dict:
         """Analyze current GitHub streak status using GraphQL API.
@@ -394,7 +445,7 @@ class StreakManager:
         Args:
             repo_path: Path to local git repository
             dates: List of dates in YYYY-MM-DD format
-            commit_count: Number of commits per date
+            commit_count: Number of commits per date (or max if randomized)
             push: Whether to push the commits to GitHub
             
         Returns:
@@ -402,20 +453,154 @@ class StreakManager:
         """
         results = {}
         
+        # Get weekdays for each date to make patterns more realistic
+        date_info = {}
+        for date_str in dates:
+            dt = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+            is_weekend = dt.weekday() >= 5  # 5 = Saturday, 6 = Sunday
+            day_of_week = dt.weekday()
+            
+            # Randomize commit count based on weekday/weekend for more realistic patterns
+            # Weekends typically have fewer commits
+            if commit_count == 1:
+                # Default behavior, 1 commit
+                actual_commit_count = 1
+            else:
+                # More realistic pattern: more commits on weekdays (especially midweek), fewer on weekends
+                if is_weekend:
+                    # Weekend: 0-2 commits usually
+                    actual_commit_count = random.choices(
+                        [0, 1, 2], 
+                        weights=[30, 60, 10],  # 30% chance of 0, 60% chance of 1, 10% chance of 2
+                        k=1
+                    )[0]
+                else:
+                    # Weekday: Distribution based on day of week
+                    # Monday/Friday: 1-3 commits typically
+                    # Tuesday-Thursday: 1-5 commits typically
+                    if day_of_week in [0, 4]:  # Monday or Friday
+                        max_count = min(3, commit_count)
+                        weights = [0, 40, 40, 20]  # 0, 1, 2, 3 commits
+                    else:  # Tuesday, Wednesday, Thursday
+                        max_count = min(5, commit_count)
+                        weights = [0, 20, 30, 30, 15, 5]  # 0, 1, 2, 3, 4, 5 commits
+                    
+                    # Adjust weights array to match the max count
+                    weights = weights[:max_count+1]
+                    # Ensure weights sum to 100
+                    total = sum(weights)
+                    weights = [w * 100 / total for w in weights]
+                    
+                    # Ensure the population and weights arrays match in length
+                    population = list(range(max_count + 1))
+                    if len(population) != len(weights):
+                        # Trim or extend weights to match population length
+                        if len(weights) > len(population):
+                            weights = weights[:len(population)]
+                        else:
+                            weights.extend([1] * (len(population) - len(weights)))
+                        # Normalize weights again
+                        total = sum(weights)
+                        weights = [w * 100 / total for w in weights]
+                    
+                    actual_commit_count = random.choices(
+                        population,
+                        weights=weights,
+                        k=1
+                    )[0]
+            
+            date_info[date_str] = {
+                'weekday': day_of_week,
+                'is_weekend': is_weekend,
+                'commit_count': actual_commit_count
+            }
+        
         for date_str in dates:
             success = False
+            actual_commit_count = date_info[date_str]['commit_count']
             
-            for i in range(commit_count):
-                file_path = f"streak_updates/{date_str}/{i}.md"
-                os.makedirs(os.path.dirname(os.path.join(repo_path, file_path)), exist_ok=True)
+            # Skip dates with 0 commits (for natural pattern)
+            if actual_commit_count == 0:
+                print(f"Skipping {date_str} (no commits scheduled)")
+                results[date_str] = True
+                continue
+            
+            print(f"Creating {actual_commit_count} commits for {date_str}")
+            
+            # Different file types for variety
+            file_types = [
+                "docs/updates.md",
+                "src/main.py",
+                "utils/helpers.py",
+                "config/settings.json",
+                "README.md",
+                "tests/test_main.py",
+                "data/sample.json"
+            ]
+            
+            # Choose random subset of files to modify for this date
+            daily_files = random.sample(file_types, min(actual_commit_count, len(file_types)))
+            if actual_commit_count > len(daily_files):
+                # Add repeats if needed
+                daily_files.extend(random.sample(file_types, actual_commit_count - len(daily_files)))
+            
+            for i in range(actual_commit_count):
+                # Pick a file to modify
+                file_type = daily_files[i]
+                file_path = f"streak_updates/{date_str}/{file_type}"
                 
-                content = f"# Update for {date_str}\n\nCommit #{i+1} of {commit_count}\n\nGenerated by GitHub Streak Manager"
-                commit_message = f"Update for {date_str} ({i+1}/{commit_count})"
+                # Create content based on file type
+                if file_path.endswith('.md'):
+                    content = f"# Update for {date_str}\n\nDocumentation update #{i+1}.\n\n## Changes\n\n- Updated documentation\n- Improved examples\n- Fixed typos"
+                elif file_path.endswith('.py'):
+                    content = f'''"""
+Module updated on {date_str}
+"""
+
+def sample_function_{date_str.replace("-", "")}_{i}():
+    """Example function added in update #{i+1}."""
+    print("Sample function implementation")
+    return True
+
+# Added in update #{i+1}
+class SampleClass:
+    """Example class for demonstration."""
+    
+    def __init__(self):
+        """Initialize the class."""
+        self.value = "{date_str}"
+    
+    def get_value(self):
+        """Return the stored value."""
+        return self.value
+'''
+                elif file_path.endswith('.json'):
+                    content = f'''{{
+  "update_date": "{date_str}",
+  "update_number": {i+1},
+  "changes": [
+    "Updated configuration",
+    "Modified settings",
+    "Adjusted parameters"
+  ]
+}}'''
+                else:
+                    content = f"# Update for {date_str}\n\nCommit #{i+1} of {actual_commit_count}\n\nGenerated content for file type: {file_path.split('.')[-1]}"
                 
-                # Add slight delay between commits for more natural behavior
+                # Generate appropriate commit message for context
+                commit_message = self._generate_commit_message(
+                    date_str=date_str,
+                    file_path=file_path,
+                    commit_index=i,
+                    total_commits=actual_commit_count
+                )
+                
+                # Add variable delay between commits for more natural behavior
                 if i > 0:
-                    time.sleep(random.uniform(0.5, 2.0))
+                    # More natural pause between commits (people typically don't commit every few seconds)
+                    time.sleep(random.uniform(1.0, 5.0))
                 
+                # Create the commit with a random time during work hours
                 success = self.backdate_commit(
                     repo_path=repo_path,
                     date=date_str,
@@ -428,7 +613,7 @@ class StreakManager:
                 if not success:
                     break
             
-            if success and push:
+            if success and push and actual_commit_count > 0:
                 try:
                     repo = Repo(repo_path)
                     repo.git.push()
@@ -466,13 +651,299 @@ class StreakManager:
         # Sort dates chronologically
         missing_dates.sort()
         
-        # Create backdated commits for each missing date
+        # Calculate a realistic maximum number of commits per day
+        # Most developers don't have more than 5-10 commits per day on average
+        max_commits = random.randint(5, 10)
+        
+        print(f"Found {len(missing_dates)} missing dates in contribution history.")
+        print(f"Will create varied commit patterns (up to {max_commits} commits per day) to look natural.")
+        
+        # Create backdated commits for each missing date with varied pattern
         return self.bulk_backdate(
             repo_path=repo_path,
             dates=missing_dates,
-            commit_count=random.randint(1, 3),  # Random number of commits for natural appearance
+            commit_count=max_commits,  # This is now used as a maximum, actual count will vary
             push=push
         )
+    
+    def create_natural_streak_pattern(self, 
+                               repo_path: str, 
+                               start_date: str, 
+                               end_date: str, 
+                               reference_username: Optional[str] = None,
+                               max_daily_commits: int = 8,
+                               push: bool = False) -> Dict[str, bool]:
+        """Create a natural looking streak pattern, optionally based on a reference user.
+        
+        This creates a more realistic commit pattern that follows typical developer habits:
+        - Less activity on weekends
+        - Variable number of commits per day
+        - Occasional days with no commits
+        - More activity during standard work hours
+        - Realistic commit messages based on file types
+        
+        Args:
+            repo_path: Path to local git repository
+            start_date: Start date in YYYY-MM-DD format
+            end_date: End date in YYYY-MM-DD format
+            reference_username: Optional GitHub username to analyze for pattern reference
+            max_daily_commits: Maximum number of commits per day
+            push: Whether to push the commits to GitHub
+            
+        Returns:
+            Dictionary mapping dates to success status
+        """
+        start = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.datetime.strptime(end_date, "%Y-%m-%d")
+        
+        # Generate list of dates
+        dates = []
+        current = start
+        while current <= end:
+            dates.append(current.strftime("%Y-%m-%d"))
+            current += datetime.timedelta(days=1)
+        
+        # If reference username provided, analyze their pattern
+        activity_pattern = {}
+        if reference_username:
+            try:
+                print(f"Analyzing commit pattern of GitHub user: {reference_username}")
+                streak_info = self.analyze_streak(reference_username)
+                
+                # Use the contribution_days to identify active/inactive days
+                contribution_days = streak_info.get("contribution_days", [])
+                
+                # Map day of week to activity levels based on reference user
+                day_of_week_activity = [0, 0, 0, 0, 0, 0, 0]  # Sun-Sat
+                day_of_week_count = [0, 0, 0, 0, 0, 0, 0]
+                
+                for day in contribution_days:
+                    date = datetime.datetime.strptime(day["date"], "%Y-%m-%d")
+                    day_index = date.weekday()
+                    contribution_count = day["count"]
+                    
+                    day_of_week_activity[day_index] += contribution_count
+                    day_of_week_count[day_index] += 1
+                
+                # Calculate average commits per day of week
+                for i in range(7):
+                    if day_of_week_count[i] > 0:
+                        day_of_week_activity[i] /= day_of_week_count[i]
+                    # Cap at max_daily_commits
+                    day_of_week_activity[i] = min(day_of_week_activity[i], max_daily_commits)
+                
+                print(f"Reference user activity pattern per day of week:")
+                days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+                for i in range(7):
+                    print(f"  {days[i]}: {day_of_week_activity[i]:.1f} commits on average")
+                
+                activity_pattern = {
+                    "day_of_week_activity": day_of_week_activity
+                }
+                
+            except Exception as e:
+                print(f"Error analyzing reference user: {e}")
+                print("Using default activity pattern.")
+                activity_pattern = {}
+        
+        # Apply the pattern to generate a realistic streak
+        # We'll do this by modifying the dates list to set commit counts
+        dates_with_metadata = []
+        
+        for date_str in dates:
+            dt = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+            day_of_week = dt.weekday()  # 0-6 (Mon-Sun)
+            
+            if activity_pattern and "day_of_week_activity" in activity_pattern:
+                # Use reference user's pattern
+                avg_commits = activity_pattern["day_of_week_activity"][day_of_week]
+                
+                # Add some randomness around the average
+                # For smaller numbers (0-2), keep it precise
+                # For larger numbers, add more variation
+                if avg_commits < 1:
+                    # Mostly 0, occasionally 1
+                    commit_count = random.choices([0, 1], weights=[80, 20], k=1)[0]
+                elif avg_commits < 2:
+                    # Mix of 0, 1, and occasionally 2
+                    commit_count = random.choices([0, 1, 2], weights=[20, 60, 20], k=1)[0]
+                else:
+                    # Normal distribution around the average
+                    variance = max(1, avg_commits / 2)
+                    commit_count = int(random.normalvariate(avg_commits, variance))
+                    commit_count = max(0, min(commit_count, max_daily_commits))
+            else:
+                # Default pattern based on typical work week
+                is_weekend = day_of_week >= 5
+                
+                if is_weekend:
+                    # Weekends have fewer commits
+                    commit_count = random.choices(
+                        [0, 1, 2], 
+                        weights=[50, 40, 10],  # 50% chance of 0, 40% chance of 1, 10% chance of 2
+                        k=1
+                    )[0]
+                else:
+                    # Workdays have more commits, with variance by day
+                    # Monday and Friday less active than midweek
+                    if day_of_week in [0, 4]:  # Monday or Friday
+                        max_count = max_daily_commits - 2
+                        weights = [10, 30, 40, 15, 5]  # 0, 1, 2, 3, 4
+                    else:  # Tuesday, Wednesday, Thursday
+                        max_count = max_daily_commits
+                        weights = [5, 15, 30, 25, 15, 5, 3, 2]  # 0-7
+                    
+                    # Adjust weights array to match the max count
+                    weights = weights[:max_count + 1]
+                    # Ensure weights sum to 100
+                    total = sum(weights)
+                    weights = [w * 100 / total for w in weights]
+                    
+                    # Ensure the population and weights arrays match in length
+                    population = list(range(max_count + 1))
+                    if len(population) != len(weights):
+                        # Trim or extend weights to match population length
+                        if len(weights) > len(population):
+                            weights = weights[:len(population)]
+                        else:
+                            weights.extend([1] * (len(population) - len(weights)))
+                        # Normalize weights again
+                        total = sum(weights)
+                        weights = [w * 100 / total for w in weights]
+                    
+                    commit_count = random.choices(
+                        population,
+                        weights=weights,
+                        k=1
+                    )[0]
+                        
+            dates_with_metadata.append({
+                "date": date_str,
+                "commit_count": commit_count
+            })
+            
+        # Summarize the generated pattern
+        active_days = sum(1 for d in dates_with_metadata if d["commit_count"] > 0)
+        total_commits = sum(d["commit_count"] for d in dates_with_metadata)
+        
+        print(f"Generated natural streak pattern from {start_date} to {end_date}:")
+        print(f"  - {len(dates)} total days, {active_days} active days ({active_days/len(dates)*100:.1f}%)")
+        print(f"  - {total_commits} total commits, {total_commits/len(dates):.1f} commits per day average")
+        
+        # Create the commits based on pattern
+        filtered_dates = [d["date"] for d in dates_with_metadata if d["commit_count"] > 0]
+        commit_counts = {d["date"]: d["commit_count"] for d in dates_with_metadata if d["commit_count"] > 0}
+        
+        # Process each date for creation
+        results = {}
+        
+        for date_str in filtered_dates:
+            commit_count = commit_counts[date_str]
+            print(f"Creating {commit_count} commits for {date_str}")
+            
+            # Different file types for variety
+            file_types = [
+                "docs/updates.md",
+                "src/main.py",
+                "utils/helpers.py",
+                "config/settings.json",
+                "README.md",
+                "tests/test_main.py",
+                "data/sample.json"
+            ]
+            
+            # Choose random subset of files to modify for this date
+            daily_files = random.sample(file_types, min(commit_count, len(file_types)))
+            if commit_count > len(daily_files):
+                # Add repeats if needed
+                daily_files.extend(random.sample(file_types, commit_count - len(daily_files)))
+            
+            success = False
+            
+            for i in range(commit_count):
+                # Pick a file to modify
+                file_type = daily_files[i]
+                file_path = f"streak_updates/{date_str}/{file_type}"
+                
+                # Create content based on file type
+                if file_path.endswith('.md'):
+                    content = f"# Update for {date_str}\n\nDocumentation update #{i+1}.\n\n## Changes\n\n- Updated documentation\n- Improved examples\n- Fixed typos"
+                elif file_path.endswith('.py'):
+                    content = f'''"""
+Module updated on {date_str}
+"""
+
+def sample_function_{date_str.replace("-", "")}_{i}():
+    """Example function added in update #{i+1}."""
+    print("Sample function implementation")
+    return True
+
+# Added in update #{i+1}
+class SampleClass:
+    """Example class for demonstration."""
+    
+    def __init__(self):
+        """Initialize the class."""
+        self.value = "{date_str}"
+    
+    def get_value(self):
+        """Return the stored value."""
+        return self.value
+'''
+                elif file_path.endswith('.json'):
+                    content = f'''{{
+  "update_date": "{date_str}",
+  "update_number": {i+1},
+  "changes": [
+    "Updated configuration",
+    "Modified settings",
+    "Adjusted parameters"
+  ]
+}}'''
+                else:
+                    content = f"# Update for {date_str}\n\nCommit #{i+1} of {commit_count}\n\nGenerated content for file type: {file_path.split('.')[-1]}"
+                
+                # Generate appropriate commit message for context
+                commit_message = self._generate_commit_message(
+                    date_str=date_str,
+                    file_path=file_path,
+                    commit_index=i,
+                    total_commits=commit_count
+                )
+                
+                # Add variable delay between commits for more natural behavior
+                if i > 0:
+                    # More natural pause between commits
+                    time.sleep(random.uniform(1.0, 5.0))
+                
+                # Create the commit with a random time during work hours
+                success = self.backdate_commit(
+                    repo_path=repo_path,
+                    date=date_str,
+                    commit_message=commit_message,
+                    file_content=content,
+                    file_path=file_path,
+                    push=False  # Don't push individual commits
+                )
+                
+                if not success:
+                    break
+            
+            if success and push:
+                try:
+                    repo = Repo(repo_path)
+                    repo.git.push()
+                except Exception as e:
+                    print(f"Error pushing commits: {e}")
+                    success = False
+            
+            results[date_str] = success
+            
+        # Final statistics
+        successful_days = sum(1 for success in results.values() if success)
+        print(f"\nStreak creation complete: {successful_days}/{len(filtered_dates)} days successfully processed")
+        
+        return results
 
 
 def main():
@@ -499,6 +970,14 @@ def main():
     parser.add_argument('--start-date', type=str, help='Start date for bulk operation (YYYY-MM-DD)')
     parser.add_argument('--end-date', type=str, help='End date for bulk operation (YYYY-MM-DD)')
     parser.add_argument('--count', type=int, default=1, help='Number of commits per date')
+    
+    # Natural streak pattern
+    parser.add_argument('--natural-pattern', action='store_true', 
+                       help='Create a natural-looking commit pattern with realistic activity')
+    parser.add_argument('--reference-user', type=str,
+                       help='GitHub username to analyze and mimic their commit pattern')
+    parser.add_argument('--max-daily-commits', type=int, default=8,
+                       help='Maximum number of commits for any given day')
     
     # Analytics
     parser.add_argument('--analyze', action='store_true', help='Analyze current streak')
@@ -545,6 +1024,26 @@ def main():
             
             if len(streak_info['missing_dates']) > 10:
                 print(f"... and {len(streak_info['missing_dates']) - 10} more")
+        return
+    
+    # Create natural streak pattern
+    if args.natural_pattern and args.repo and args.start_date and args.end_date:
+        print(f"Creating natural commit streak pattern from {args.start_date} to {args.end_date}")
+        print(f"Repository: {args.repo}")
+        
+        if args.reference_user:
+            print(f"Using {args.reference_user}'s commit pattern as reference")
+        
+        results = manager.create_natural_streak_pattern(
+            repo_path=args.repo,
+            start_date=args.start_date,
+            end_date=args.end_date,
+            reference_username=args.reference_user,
+            max_daily_commits=args.max_daily_commits,
+            push=args.push
+        )
+        
+        # Success statistics already printed in the function
         return
     
     # Fill streak

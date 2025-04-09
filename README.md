@@ -58,6 +58,26 @@ Create commits for a range of dates:
 github-streak-manager --bulk --repo /path/to/local/repo --start-date 2023-09-01 --end-date 2023-09-30 --count 2 --push
 ```
 
+### Create a Natural-Looking Commit Pattern
+
+Create a realistic commit pattern that mimics typical developer behavior (varied commit counts, fewer weekend commits, etc.):
+
+```bash
+github-streak-manager --natural-pattern --repo /path/to/local/repo --start-date 2023-09-01 --end-date 2023-12-31 --push
+```
+
+You can even mimic another GitHub user's commit pattern:
+
+```bash
+github-streak-manager --natural-pattern --repo /path/to/local/repo --start-date 2023-09-01 --end-date 2023-12-31 --reference-user popular-developer --push
+```
+
+Control the maximum number of commits per day:
+
+```bash
+github-streak-manager --natural-pattern --repo /path/to/local/repo --start-date 2023-09-01 --end-date 2023-12-31 --max-daily-commits 5 --push
+```
+
 ### Analyze Your Streak
 
 ```bash
